@@ -4,6 +4,12 @@
 #include <fstream>
 #include <vector>
 #include "fib_heap.h"
+#include "gtest/gtest.h"
+
+#define UNIT_TESTING 0
+#define NAIVE 0
+#define CLASSIC 1
+#define NDEBUG 1
 
 using namespace fh;
 using namespace std;
@@ -31,13 +37,17 @@ void reset_vector(T& vec, const size_t size) {
 	vec.insert(vec.end(), size + 1, nullptr);
 }
 
-int main(int, char* argv[]) {
+int main(int argc, char* argv[]) {
+#if UNIT_TESTING
+	::testing::InitGoogleTest(&argc, argv);
+	return RUN_ALL_TESTS();
+#else
 	uint_least64_t delete_min_count = 0;
 	uint_least64_t decrease_count = 0;
-	uint_least64_t naive_delete_min_count = 0;
-	uint_least64_t naive_decrease_count = 0;
 	uint_least64_t steps_delete_min_count = 0;
 	uint_least64_t steps_decrease_count = 0;
+	uint_least64_t naive_delete_min_count = 0;
+	uint_least64_t naive_decrease_count = 0;
 	uint_least64_t steps_naive_delete_min_count = 0;
 	uint_least64_t steps_naive_decrease_count = 0;
 
@@ -80,18 +90,25 @@ int main(int, char* argv[]) {
 	size_t last_n = 0;
 	auto first = true;
 	ofstream ofs{ argv[1] };
-	ifstream ifs{ "rand_uniform.txt" };
+	ifstream ifs{ "rand_uniform.err.txt" };
 
 	while (!getline(ifs, line).eof()) {
+#if NDEBUG
 		//cout << line << endl;
+#endif
 		auto tokens = split(line, ' ');
 		if (tokens[0] == string("#")) {
 			if (!first) {
 				ofs << last_n << " ";
-				ofs << delete_min_count / steps_delete_min_count << " ";
-				ofs << decrease_count / steps_decrease_count << " ";
-				ofs << naive_delete_min_count / steps_naive_delete_min_count << " ";
-				ofs << naive_decrease_count / steps_decrease_count << endl;
+#if CLASSIC
+				ofs << float(delete_min_count) / steps_delete_min_count << " ";
+				ofs << float(decrease_count) / steps_decrease_count << " ";
+#endif
+#if NAIVE
+				ofs << float(naive_delete_min_count) / steps_naive_delete_min_count << " ";
+				ofs << float(naive_decrease_count) / steps_decrease_count;
+#endif
+				ofs << endl;
 				ofs << flush;
 				cout << "FUCK THAT SHIT!" << endl;
 			}
@@ -106,45 +123,64 @@ int main(int, char* argv[]) {
 			steps_naive_decrease_count = 0;
 			// prepare new run
 			last_n = stoi(tokens[1]);
+#if CLASSIC
 			heap_classic.clear();
 			reset_vector(remembered_nodes_classic, last_n);
+#endif
+#if NAIVE
 			heap_naive.clear();
 			reset_vector(remembered_nodes_naive, last_n);
+#endif
 			first = false;
 		}
 		else if (tokens[0] == string("I")) {
 			const auto identification = stoi(tokens[1]);
 			const auto priority = stoi(tokens[2]);
+			heap_t::node_t handle;
+#if CLASSIC
 			naive = false;
-			auto handle = heap_classic.insert(identification, priority);
+			handle = heap_classic.insert(identification, priority);
 			remembered_nodes_classic.at(identification) = handle;
+#endif
+#if NAIVE
 			naive = true;
 			handle = heap_naive.insert(identification, priority);
 			remembered_nodes_naive.at(identification) = handle;
+#endif
 		}
 		else if (tokens[0] == string("M")) {
 			naive = false;
+#if CLASSIC
 			const auto min = heap_classic.delete_min();
 			if (min) remembered_nodes_classic.at(min->value) = nullptr;
 			delete min;
+#endif
+#if NAIVE
 			naive = true;
 			const auto min2 =  heap_naive.delete_min();
 			if (min2) remembered_nodes_naive.at(min2->value) = nullptr;
 			delete min2;
+#endif
 		}
 		else { // if (tokens[0] == string("D"))
 			const auto identification = stoi(tokens[1]);
 			const auto priority = stoi(tokens[2]);
+#if CLASSIC
 			if (remembered_nodes_classic.at(identification) != nullptr &&
 				remembered_nodes_classic.at(identification)->priority >= priority) {
 				naive = false;
 				heap_classic.decrease(remembered_nodes_classic.at(identification), priority);
 			}
+#endif
+#if NAIVE
 			if (remembered_nodes_naive.at(identification) != nullptr &&
 				remembered_nodes_naive.at(identification)->priority >= priority) {
 				naive = true;
 				heap_naive.decrease(remembered_nodes_naive.at(identification), priority);
 			}
+#endif
 		}
 	}
+	cout << "END OF SHIT" << endl;
+#endif
 }
