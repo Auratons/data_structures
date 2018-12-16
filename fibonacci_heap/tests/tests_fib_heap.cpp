@@ -66,4 +66,27 @@ namespace fh {
 		ASSERT_EQ(res->left->left->left->left->left, &d);
 	}
 
+	TEST_F(NodeTests, MergeListNode) {
+		const auto list1 = &a;
+		a.right = &b; a.left = &c;
+		b.right = &c; b.left = &a;
+		c.right = &a; c.left = &b;
+		const auto list2 = &d;
+		auto res = node::merge(list1, list2);
+		ASSERT_EQ(res, list2);
+		ASSERT_EQ(res, &d);
+		ASSERT_EQ(res->right, &b);
+		ASSERT_EQ(res->right->right, &c);
+		ASSERT_EQ(res->right->right->right, &a);
+		ASSERT_EQ(res->right->right->right->right, &d);
+		ASSERT_EQ(res->left, &a);
+		ASSERT_EQ(res->left->left, &c);
+		ASSERT_EQ(res->left->left->left, &b);
+		ASSERT_EQ(res->left->left->left->left, &d);
+	}
+
+	int main(int argc, char* argv[]) {
+		::testing::InitGoogleTest(&argc, argv);
+		return RUN_ALL_TESTS();
+	}
 }
