@@ -48,10 +48,18 @@ int main(int argc, char* argv[]) {
 	}
 	uint_least64_t delete_min_count = 0;
 	uint_least64_t decrease_count = 0;
+	uint_least64_t delete_min_max = 0;
+	uint_least64_t decrease_max = 0;
+	uint_least64_t delete_min_last = 0;
+	uint_least64_t decrease_last = 0;
 	uint_least64_t steps_delete_min_count = 0;
 	uint_least64_t steps_decrease_count = 0;
 	uint_least64_t naive_delete_min_count = 0;
 	uint_least64_t naive_decrease_count = 0;
+	uint_least64_t naive_delete_min_max = 0;
+	uint_least64_t naive_decrease_max = 0;
+	uint_least64_t naive_delete_min_last = 0;
+	uint_least64_t naive_decrease_last = 0;
 	uint_least64_t steps_naive_delete_min_count = 0;
 	uint_least64_t steps_naive_decrease_count = 0;
 
@@ -59,27 +67,55 @@ int main(int argc, char* argv[]) {
 	auto fun = [&](const bool decrease, const bool operation_end) {
 		if (decrease) {
 			if (operation_end) {
-				if (naive)
+				if (naive) {
+					if (naive_decrease_last > naive_decrease_max)
+						naive_decrease_max = naive_decrease_last;
+					naive_decrease_last = 0;
 					++steps_naive_decrease_count;
-				else
+				}
+				else {
+					if (decrease_last > decrease_max)
+						decrease_max = decrease_last;
+					decrease_last = 0;
 					++steps_decrease_count;
+				}
 			}
-			if (naive)
-				++naive_decrease_count;
-			else
-				++decrease_count;
+			else {
+				if (naive) {
+					++naive_decrease_last;
+					++naive_decrease_count;
+				}
+				else {
+					++decrease_last;
+					++decrease_count;
+				}
+			}
 		}
 		else {
 			if (operation_end) {
-				if (naive)
+				if (naive) {
+					if (naive_delete_min_last > naive_delete_min_max)
+						naive_delete_min_max = naive_delete_min_last;
+					naive_delete_min_last = 0;
 					++steps_naive_delete_min_count;
-				else
+				}
+				else {
+					if (delete_min_last > delete_min_max)
+						delete_min_max = delete_min_last;
+					delete_min_last = 0;
 					++steps_delete_min_count;
+				}
 			}
-			if (naive)
-				++naive_delete_min_count;
-			else
-				++delete_min_count;
+			else {
+				if (naive) {
+					++naive_delete_min_last;
+					++naive_delete_min_count;
+				}
+				else {
+					++delete_min_last;
+					++delete_min_count;
+				}
+			}
 		}
 	};
 	using heap_t = fibonacci_heap<int, decltype(fun)>;
@@ -122,10 +158,14 @@ int main(int argc, char* argv[]) {
             #if CLASSIC
 				ofs << float(delete_min_count) / steps_delete_min_count << " ";
 				ofs << float(decrease_count) / steps_decrease_count << " ";
+				ofs << delete_min_max << " ";
+				ofs << decrease_max << " ";
             #endif
             #if NAIVE
 				ofs << float(naive_delete_min_count) / steps_naive_delete_min_count << " ";
-				ofs << float(naive_decrease_count) / steps_decrease_count;
+				ofs << float(naive_decrease_count) / steps_naive_decrease_count;
+				ofs << naive_delete_min_max << " ";
+				ofs << naive_decrease_max;
             #endif
 				ofs << endl;
 				ofs << flush;
@@ -134,10 +174,18 @@ int main(int argc, char* argv[]) {
 			// reset counters
 			delete_min_count = 0;
 			decrease_count = 0;
-			naive_delete_min_count = 0;
-			naive_decrease_count = 0;
+			delete_min_max = 0;
+			decrease_max = 0;
+			delete_min_last = 0;
+			decrease_last = 0;
 			steps_delete_min_count = 0;
 			steps_decrease_count = 0;
+			naive_delete_min_count = 0;
+			naive_decrease_count = 0;
+			naive_delete_min_max = 0;
+			naive_decrease_max = 0;
+			naive_delete_min_last = 0;
+			naive_decrease_last = 0;
 			steps_naive_delete_min_count = 0;
 			steps_naive_decrease_count = 0;
 			// prepare next run
@@ -189,21 +237,21 @@ int main(int argc, char* argv[]) {
             if (min->priority != ground->priority){}
                 //throw 1;
         #endif
+            delete min;
         #endif
         #if NAIVE
 			naive = true;
 			const auto min2 =  heap_naive.delete_min();
 			if (min2) remembered_nodes_naive.at(min2->value) = nullptr;
         #ifndef NDEBUG
-            if (min2->priority != ground->priority)
+            if (min2->priority != ground->priority){}
                 //throw;
         #endif
+			delete min2;
         #endif
 		#ifndef NDEBUG
             delete ground;
         #endif
-            delete min;
-			delete min2;
 		}
 		else { // if (tokens[0] == string("D"))
 			const auto identification = stoi(tokens[1]);
