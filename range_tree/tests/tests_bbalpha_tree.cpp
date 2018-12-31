@@ -52,6 +52,25 @@ TEST(BBTreeTests, Insert) {
     });
 }
 
+TEST(BBTreeTests, InsertDuplicit) {
+    bbalpha<int> tree(0.65f);
+    tree.insert(2);
+    tree.insert(4);
+    tree.insert(10);  // Rebuild
+    tree.insert(4);  // Duplicity
+    tree.insert(3);  // Rebuild
+    tree.inorder_dfs(tree.tree, [&tree](node* n){
+        auto val = 1;
+        val += (n->left) ? n->left->subtree_size : 0;
+        val += (n->right) ? n->right->subtree_size : 0;
+        EXPECT_EQ(n->subtree_size, val);
+        EXPECT_GE(n->value, (n->right) ? n->right->value : 0);
+        EXPECT_LE(n->value, (n->left) ? n->left->value : std::numeric_limits<int>::max());
+        EXPECT_GE(tree.alpha * n->subtree_size, (n->right) ? n->right->subtree_size : 0);
+        EXPECT_GE(tree.alpha * n->subtree_size, (n->left) ? n->left->subtree_size : 0);
+    });
+}
+
 int main(int argc, char* argv[]) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

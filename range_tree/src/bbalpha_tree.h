@@ -76,55 +76,51 @@ namespace rt {
 
         node* insert(const T& val) {
             node* node_to;
-            node*  maybe_found;
             node** insertion_place;
-            std::tie(node_to, insertion_place, maybe_found) = insert_find(val);
+            std::tie(node_to, insertion_place) = insert_find(val);
             if (!tree) {
                 tree = new node(val);
                 ++elements_count;
                 return tree;
             }
-            if (!maybe_found) {
-                *insertion_place = new node(val);
-                (*insertion_place)->parent = node_to;
-                ++elements_count;
+            *insertion_place = new node(val);
+            (*insertion_place)->parent = node_to;
+            ++elements_count;
 
-                // Update subtree sizes above inserted node, possibly repair tree.
-                node* ptr = node_to;
-                while (ptr) {
-                    ++(ptr->subtree_size);
-                    int_least32_t r_size = (ptr->right) ? ptr->right->subtree_size : 0;
-                    int_least32_t l_size = (ptr->left) ? ptr->left->subtree_size : 0;
-                    int_least32_t size = ptr->subtree_size;
-                    if (r_size > alpha * size || l_size > alpha * size) {
-                        // Rebuild the ptr subtree.
-                        node** array = new node*[size];
-                        int_least32_t idx = 0;
-                        inorder_dfs(ptr, [&idx, &array](auto n){
-                            array[idx] =n;
-                            ++idx;
-                        });
-                        struct {
-                            bool operator()(node* a, node* b) const {
-                                return a->value < b->value;
-                            }
-                        } comparator;
-                        std::sort(array, array + size, comparator);
-                        node** ptr_parent_ptr = nullptr;
-                        node* ptr_parent = ptr->parent;
-                        if (ptr_parent)
-                            ptr_parent_ptr = (ptr->parent->right == ptr) ? &(ptr->parent->right) : &(ptr->parent->left);
-                        else
-                            ptr_parent_ptr = &tree;
-                        *ptr_parent_ptr = build_t(array, 0, size);  // Correctly hang rebuilt tree.
-                        (*ptr_parent_ptr)->parent = ptr_parent;  // Correctly set parent to the top of the rebuilt tree.
-                        ptr = ptr_parent;  // Ptr now correctly heads above just rebuilt tree.
-
-                        delete[] array;
-                    }
+            // Update subtree sizes above inserted node, possibly repair tree.
+            node* ptr = node_to;
+            while (ptr) {
+                ++(ptr->subtree_size);
+                int_least32_t r_size = (ptr->right) ? ptr->right->subtree_size : 0;
+                int_least32_t l_size = (ptr->left) ? ptr->left->subtree_size : 0;
+                int_least32_t size = ptr->subtree_size;
+                if (r_size > alpha * size || l_size > alpha * size) {
+                    // Rebuild the ptr subtree.
+                    node **array = new node *[size];
+                    int_least32_t idx = 0;
+                    inorder_dfs(ptr, [&idx, &array](auto n) {
+                        array[idx] = n;
+                        ++idx;
+                    });
+                    struct {
+                        bool operator()(node *a, node *b) const {
+                            return a->value < b->value;
+                        }
+                    } comparator;
+                    std::sort(array, array + size, comparator);
+                    node **ptr_parent_ptr = nullptr;
+                    node *ptr_parent = ptr->parent;
+                    if (ptr_parent)
+                        ptr_parent_ptr = (ptr->parent->right == ptr) ? &(ptr->parent->right) : &(ptr->parent->left);
                     else
-                        ptr = ptr->parent;
-                }
+                        ptr_parent_ptr = &tree;
+                    *ptr_parent_ptr = build_t(array, 0, size);  // Correctly hang rebuilt tree.
+                    (*ptr_parent_ptr)->parent = ptr_parent;  // Correctly set parent to the top of the rebuilt tree.
+                    ptr = ptr_parent;  // Ptr now correctly heads above just rebuilt tree.
+
+                    delete[] array;
+                } else
+                    ptr = ptr->parent;
             }
             return *insertion_place;
         }
@@ -139,17 +135,16 @@ namespace rt {
         }
 
     private:
-        // Stop one at last but one node before final find -> can be used for insert and normal find.
+        // Returns address of place where to insert pointer to inserted node +
+        // pointer to the newly parental node.
+        // Ignores duplicities, always finds a place for insertion
         auto insert_find(const T& node_data) noexcept {
             node* ptr = tree;
             node* pre_ptr = nullptr;
             node** insertion_place = nullptr;
             while (ptr != nullptr) {
                 const auto& current_data = ptr->value;
-                if (current_data == node_data) {
-                    return std::make_tuple(pre_ptr, insertion_place, ptr);
-                }
-                if (current_data > node_data) {
+                if (current_data >= node_data) {
                     insertion_place = &(ptr->right);
                     pre_ptr = ptr;
                     ptr = ptr->right;
@@ -160,7 +155,7 @@ namespace rt {
                     ptr = ptr->left;
                 }
             }
-            return std::make_tuple(pre_ptr, insertion_place, ptr);
+            return std::make_tuple(pre_ptr, insertion_place);
         }
     };
 
