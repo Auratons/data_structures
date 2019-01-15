@@ -1,7 +1,66 @@
+#include <string>
+#include <sstream>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <algorithm>
 #include "bloom_filter.h"
+#include "looping.h"
 
-int main(int argc, char* argv[]) {
-	bloom_filter<1000, 15> hash_set;
-	char str[] = "aa a a a";
-	auto x = hash_set.insert(str, 8 * sizeof(char));
+using namespace std;
+using namespace bf;
+
+template<typename Out>
+void split(const string &s, const char& delimiter, Out&& result) {
+	stringstream ss(s);
+	string item;
+	while (getline(ss, item, delimiter)) {
+		if (!item.empty())
+			*(result++) = item;
+	}
+}
+
+vector<string> split(const string &s, const char& delimiter) {
+	vector<string> elems;
+	split(s, delimiter, back_inserter(elems));
+	return elems;
+}
+
+int main(int, char** argv) {
+	constexpr const auto step_size = 10000;
+	vector<int> functions{ 1, 2, 3, 4, 10, 15 };
+	vector<int> sizes(600000 / step_size);
+	generate(begin(sizes), end(sizes), [=, i = 0]() mutable { return ++i * step_size; });
+
+	const auto output_file_name = string(argv[1]);
+	ofstream ofs{ output_file_name };
+	if (!ofs.is_open())
+		throw invalid_argument("File " + output_file_name + " could not be opened for writing.");
+	
+	const auto input_file_name = string("ascii_shakespeare_squeezed_whitespaces.txt");
+	ifstream ifs{ input_file_name };
+	if (!ifs.is_open())
+		throw invalid_argument("File " + input_file_name + " could not be opened for reading.");
+
+	const auto f = [](auto&& bf, ifstream& ifs, ofstream& ofs, const int i) {
+		string line;
+		int_least64_t insert_counter = 0;
+		ifs.clear();            // clear fail and eof bits
+		ifs.seekg(0, ios::beg); // back to the start!
+		while (getline(ifs, line)) {
+			auto tokens = split(line, ' ');
+			for (auto&& token : tokens) {
+				if (bf.insert(token.c_str(), token.length()))
+					++insert_counter;
+			}
+		}
+		ofs << insert_counter << " ";
+		if (i == f_cnt) {
+			ofs << endl;
+			ofs << flush;
+		}
+	};
+
+	looper<max_steps>()(f, ifs, ofs);
+
 }
