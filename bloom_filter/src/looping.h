@@ -37,6 +37,7 @@ namespace bf {
 	struct looper {
 		template <typename F>
 		constexpr void operator()(F& f, std::ifstream& ifs, std::ofstream& ofs) {
+			ofs << Size << " ";
 			f_loop<Size, 1>()(f, ifs, ofs);
 			looper<Size - step_size>()(f, ifs, ofs);
 		}
@@ -46,6 +47,7 @@ namespace bf {
 	struct looper<min_steps> {
 		template <typename F>
 		constexpr void operator()(F& f, std::ifstream& ifs, std::ofstream& ofs) {
+			ofs << min_steps << " ";
 			f_loop<min_steps, 1>()(f, ifs, ofs);
 		}
 	};

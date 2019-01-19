@@ -7,42 +7,63 @@
 #include <cstring>
 #include <random>
 
+
 #define STUDENT_NUMBER 95
 #define PREALLOCATED 15
 //#define NDEBUG
+#define USE_STL_GENERATOR
+
+#ifndef USE_STL_GENERATOR
+#include <time.h>
+#include <stdlib.h>
+#endif
 
 namespace bf {
 
-	template<std::size_t BitArraySize, std::size_t HashFunctionCount>
+	template<std::size_t BitArraySize, uint32_t HashFunctionCount>
 	class bloom_filter {
 		const std::size_t bit_array_size_ = (BitArraySize + 7) / 8;
-		const std::size_t prime_number_ = 27644437;
+		const uint32_t prime_number_ = 27644437u;
 		uint8_t* bit_array_ = nullptr;
 		std::size_t* hash_param_a_ = nullptr;
 		std::size_t* hash_param_b_ = nullptr;
 		std::size_t* hash_param_c_ = nullptr;
 		uint_least64_t** a_powers_ = nullptr;
 		std::size_t precomputed_number_ = 0;
-		std::size_t currently_allocated_ = 100;
+		std::size_t currently_allocated_ = 35;
 	public:
-		explicit bloom_filter() :
-			bit_array_(new uint8_t[bit_array_size_]),
-			hash_param_a_(new std::size_t[HashFunctionCount]),
-			hash_param_b_(new std::size_t[HashFunctionCount]),
-			hash_param_c_(new std::size_t[HashFunctionCount]),
-			a_powers_(new uint_least64_t*[HashFunctionCount]) {
-			std::random_device rd;  //Will be used to obtain a seed for the random number engine
-			std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
-			std::uniform_int_distribution<> dis(0, prime_number_ - 1);
+		explicit bloom_filter() {
+			bit_array_ = new uint8_t[bit_array_size_];
+			hash_param_a_ = new std::size_t[HashFunctionCount];
+			hash_param_b_ = new std::size_t[HashFunctionCount];
+			hash_param_c_ = new std::size_t[HashFunctionCount];
+			a_powers_ = new uint_least64_t*[HashFunctionCount];
 			std::memset(bit_array_, 0, bit_array_size_);
-			for (std::size_t i = 0; i < HashFunctionCount; ++i) {
+#ifdef USE_STL_GENERATOR
+			std::random_device rd;  //Will be used to obtain a seed for the random number engine
+			std::mt19937 gen{ rd() }; //Standard mersenne_twister_engine seeded with rd()
+			std::uniform_int_distribution<> dis{ 0, int32_t(prime_number_ - 1) };
+#else
+			srand(time(nullptr));
+			auto r = random(uint32_t(rand()));
+#endif
+			precomputed_number_ = 35;
+			for (uint32_t i = 0; i < HashFunctionCount; ++i) {
+#ifdef USE_STL_GENERATOR
 				hash_param_a_[i] = dis(gen) % prime_number_;
 				hash_param_b_[i] = dis(gen) % prime_number_;
 				hash_param_c_[i] = dis(gen) % prime_number_;
+#else
+				hash_param_a_[i] = r.next_u32() % prime_number_;
+				hash_param_b_[i] = r.next_u32() % prime_number_;
+				hash_param_c_[i] = r.next_u32() % prime_number_;
+#endif
 				a_powers_[i] = new uint_least64_t[currently_allocated_];
 				a_powers_[i][0] = 1;
+				for (size_t j = 1; j < precomputed_number_ - 1; ++j) {
+					a_powers_[i][j] = a_powers_[i][j - 1] * hash_param_a_[i];
+				}
 			}
-			precomputed_number_ = 1;
 		}
 		bloom_filter(const bloom_filter& other) = delete;
 		bloom_filter(bloom_filter&& other) noexcept = default;
@@ -53,7 +74,7 @@ namespace bf {
 			delete[] hash_param_a_;
 			delete[] hash_param_b_;
 			delete[] hash_param_c_;
-			for (std::size_t i = 0; i < HashFunctionCount; ++i) {
+			for (uint32_t i = 0; i < HashFunctionCount; ++i) {
 				delete[] a_powers_[i];
 			}
 			delete[] a_powers_;
@@ -61,7 +82,7 @@ namespace bf {
 
 		bool insert(const void* value, const uint_least64_t value_size) {
 			auto inserted = false;
-			for (std::size_t hash_fun = 0; hash_fun < HashFunctionCount; ++hash_fun) {
+			for (uint32_t hash_fun = 0; hash_fun < HashFunctionCount; ++hash_fun) {
 				const auto index = compute_hash(hash_fun, value, value_size);
 				if (!get_bit(index)) {
 					inserted = true;
@@ -71,9 +92,53 @@ namespace bf {
 			return inserted;
 		}
 
-	private:
+		std::size_t utilization() const {
+			std::size_t count = 0;
+			for (std::size_t i = 0; i < BitArraySize; ++i) {
+				if (get_bit(i))
+					++count;
+			}
+			return count;
+		}
 
-		uint_least64_t compute_hash(const std::size_t function_index, const void* value, const uint_least64_t value_byte_size) {
+	private:
+#ifndef USE_STL_GENERATOR
+		class random {
+			/*
+			 * This is the xoroshiro128+ random generator, designed in 2016 by David Blackman
+			 * and Sebastiano Vigna, distributed under the CC-0 license. For more details,
+			 * see http://vigna.di.unimi.it/xorshift/.
+			 */
+			uint64_t rng_state_[2] = { 0, 0 };
+		public:
+			explicit random(const uint32_t seed) {
+				rng_state_[0] = seed * 0xdeadbeef;
+				rng_state_[1] = seed ^ 0xc0de1234;
+				for (auto i = 0; i < 100; i++)
+					next_u64();
+			}
+
+			static uint64_t rot_l(const uint64_t x, int k) {
+				return (x << k) | (x >> (64 - k));
+			}
+
+			uint64_t next_u64() {
+				const auto s0 = rng_state_[0];
+				auto s1 = rng_state_[1];
+				const auto result = s0 + s1;
+				s1 ^= s0;
+				rng_state_[0] = rot_l(s0, 55) ^ s1 ^ (s1 << 14);
+				rng_state_[1] = rot_l(s1, 36);
+				return result;
+			}
+
+			uint32_t next_u32() {
+				return uint32_t(next_u64() >> 11);
+			}
+		};
+#endif
+
+		uint_least64_t compute_hash(const uint32_t function_index, const void* value, const uint_least64_t value_byte_size) {
 			assert(function_index < HashFunctionCount);
 			uint_least64_t counter = 0;
 			const auto poly_base = hash_param_a_[function_index];
@@ -90,11 +155,11 @@ namespace bf {
 				}
 			}
 
-			const auto val = reinterpret_cast<const uint8_t*>(value);
+			const auto val = static_cast<const uint8_t*>(value);
 			for (std::size_t i = 0; i < value_byte_size; ++i) {
-				counter += (multiplicative * val[i] * a_powers_[function_index][i]) % prime_number_;
+				counter = (counter % prime_number_ + (val[i] * a_powers_[function_index][i]) % prime_number_) % prime_number_;
 			}
-			return (additive + counter % prime_number_) % BitArraySize;
+			return (additive + (multiplicative * (counter  % prime_number_)) % prime_number_) % BitArraySize;
 		}
 
 		bool get_bit(const uint_least64_t index) const {
@@ -102,7 +167,7 @@ namespace bf {
 			return bit_array_[index / 8] & (1 << (index % 8));
 		}
 
-		void set_bit(const uint_least64_t index) {
+		void set_bit(const uint_least64_t index) const {
 			assert(index < BitArraySize);
 			bit_array_[index / 8] |= (1 << (index % 8));
 		}
@@ -113,7 +178,7 @@ namespace bf {
 		static ArrayType* double_array(ArrayType* arr, std::size_t* array_size) {
 			const auto next_size = (*array_size) * 2;
 			auto temp = new ArrayType[next_size];
-			std::memcpy(temp, arr, (*array_size) * sizeof(ArrayType*) / sizeof(unsigned char));
+			std::memcpy(temp, arr, (*array_size) * sizeof(ArrayType) / sizeof(unsigned char));
 			*array_size = next_size;
 			delete[] arr;
 			return temp;

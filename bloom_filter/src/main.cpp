@@ -42,7 +42,7 @@ int main(int, char** argv) {
 	if (!ifs.is_open())
 		throw invalid_argument("File " + input_file_name + " could not be opened for reading.");
 
-	const auto f = [](auto&& bf, ifstream& ifs, ofstream& ofs, const int i) {
+	const auto f = [](auto&& bf, ifstream& ifs, ofstream& ofs, const uint32_t i) {
 		string line;
 		int_least64_t insert_counter = 0;
 		ifs.clear();            // clear fail and eof bits
@@ -55,12 +55,14 @@ int main(int, char** argv) {
 			}
 		}
 		ofs << insert_counter << " ";
+		ofs << bf.utilization() << " ";
 		if (i == f_cnt) {
 			ofs << endl;
 			ofs << flush;
 		}
 	};
 
+	ofs << "bit_arr_size f1 f1util f2 f2util f3 f3util f4 f4util f10 f10util f15 f15util" << endl;
 	looper<max_steps>()(f, ifs, ofs);
 
 }
