@@ -9,9 +9,11 @@
 
 
 #define STUDENT_NUMBER 95
-#define PREALLOCATED 15
-//#define NDEBUG
-#define USE_STL_GENERATOR
+#define NDEBUG
+//#define USE_STL_GENERATOR
+
+#define GET_PARAM_A(func_idx) (a_powers_[func_idx][1])
+#define BYTE_SIZE(bit_count) (((bit_count) + 7) / 8)
 
 #ifndef USE_STL_GENERATOR
 #include <time.h>
@@ -22,23 +24,16 @@ namespace bf {
 
 	template<std::size_t BitArraySize, uint32_t HashFunctionCount>
 	class bloom_filter {
-		const std::size_t bit_array_size_ = (BitArraySize + 7) / 8;
 		const uint32_t prime_number_ = 27644437u;
-		uint8_t* bit_array_ = nullptr;
-		std::size_t* hash_param_a_ = nullptr;
-		std::size_t* hash_param_b_ = nullptr;
-		std::size_t* hash_param_c_ = nullptr;
+		uint8_t bit_array_[BYTE_SIZE(BitArraySize)]{};
+		std::size_t hash_param_b_[HashFunctionCount]{};
+		std::size_t hash_param_c_[HashFunctionCount]{};
 		uint_least64_t** a_powers_ = nullptr;
 		std::size_t precomputed_number_ = 0;
 		std::size_t currently_allocated_ = 35;
 	public:
-		explicit bloom_filter() {
-			bit_array_ = new uint8_t[bit_array_size_];
-			hash_param_a_ = new std::size_t[HashFunctionCount];
-			hash_param_b_ = new std::size_t[HashFunctionCount];
-			hash_param_c_ = new std::size_t[HashFunctionCount];
+		bloom_filter() {
 			a_powers_ = new uint_least64_t*[HashFunctionCount];
-			std::memset(bit_array_, 0, bit_array_size_);
 #ifdef USE_STL_GENERATOR
 			std::random_device rd;  //Will be used to obtain a seed for the random number engine
 			std::mt19937 gen{ rd() }; //Standard mersenne_twister_engine seeded with rd()
@@ -49,19 +44,19 @@ namespace bf {
 #endif
 			precomputed_number_ = 35;
 			for (uint32_t i = 0; i < HashFunctionCount; ++i) {
+				a_powers_[i] = new uint_least64_t[currently_allocated_];
+				a_powers_[i][0] = 1;
 #ifdef USE_STL_GENERATOR
-				hash_param_a_[i] = dis(gen) % prime_number_;
+				a_powers_[i][1] = dis(gen) % prime_number_;
 				hash_param_b_[i] = dis(gen) % prime_number_;
 				hash_param_c_[i] = dis(gen) % prime_number_;
 #else
-				hash_param_a_[i] = r.next_u32() % prime_number_;
+				a_powers_[i][1] = r.next_u32() % prime_number_;
 				hash_param_b_[i] = r.next_u32() % prime_number_;
 				hash_param_c_[i] = r.next_u32() % prime_number_;
 #endif
-				a_powers_[i] = new uint_least64_t[currently_allocated_];
-				a_powers_[i][0] = 1;
 				for (size_t j = 1; j < precomputed_number_ - 1; ++j) {
-					a_powers_[i][j] = a_powers_[i][j - 1] * hash_param_a_[i];
+					a_powers_[i][j] = a_powers_[i][j - 1] * GET_PARAM_A(i);
 				}
 			}
 		}
@@ -70,10 +65,6 @@ namespace bf {
 		bloom_filter& operator=(const bloom_filter& other) = delete;
 		bloom_filter& operator=(bloom_filter&& other) noexcept = default;
 		~bloom_filter() {
-			delete[] bit_array_;
-			delete[] hash_param_a_;
-			delete[] hash_param_b_;
-			delete[] hash_param_c_;
 			for (uint32_t i = 0; i < HashFunctionCount; ++i) {
 				delete[] a_powers_[i];
 			}
@@ -141,7 +132,7 @@ namespace bf {
 		uint_least64_t compute_hash(const uint32_t function_index, const void* value, const uint_least64_t value_byte_size) {
 			assert(function_index < HashFunctionCount);
 			uint_least64_t counter = 0;
-			const auto poly_base = hash_param_a_[function_index];
+			const auto poly_base = GET_PARAM_A(function_index);
 			const auto multiplicative = hash_param_b_[function_index];
 			const auto additive = hash_param_c_[function_index];
 
@@ -167,7 +158,7 @@ namespace bf {
 			return bit_array_[index / 8] & (1 << (index % 8));
 		}
 
-		void set_bit(const uint_least64_t index) const {
+		void set_bit(const uint_least64_t index) {
 			assert(index < BitArraySize);
 			bit_array_[index / 8] |= (1 << (index % 8));
 		}

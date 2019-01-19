@@ -4,6 +4,7 @@
 #include <fstream>
 #include <vector>
 #include <algorithm>
+#include <chrono>
 #include "bloom_filter.h"
 #include "looping.h"
 
@@ -61,8 +62,14 @@ int main(int, char** argv) {
 			ofs << flush;
 		}
 	};
-
 	ofs << "bit_arr_size f1 f1util f2 f2util f3 f3util f4 f4util f10 f10util f15 f15util" << endl;
+	//f(bloom_filter<60000, 10>(), ifs, ofs, 0);
+	//looper<max_steps>()(f, ifs, ofs);
+	const auto start = std::chrono::high_resolution_clock::now();
+	//test(f, ifs, ofs);
 	looper<max_steps>()(f, ifs, ofs);
+	const auto end = std::chrono::high_resolution_clock::now();
 
+	const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+	cout << "Done in " << milliseconds / 1000 << " seconds." << endl;
 }
