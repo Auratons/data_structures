@@ -38,7 +38,7 @@ int main(int, char** argv) {
 	if (!ofs.is_open())
 		throw invalid_argument("File " + output_file_name + " could not be opened for writing.");
 	
-	const auto input_file_name = string("ascii_shakespeare_squeezed_whitespaces.txt");
+	const auto input_file_name = string("ascii_shakespeare.txt");
 	ifstream ifs{ input_file_name };
 	if (!ifs.is_open())
 		throw invalid_argument("File " + input_file_name + " could not be opened for reading.");
