@@ -47,16 +47,16 @@ namespace bf {
 				a_powers_[i] = new uint_least64_t[currently_allocated_];
 				a_powers_[i][0] = 1;
 #ifdef USE_STL_GENERATOR
-				a_powers_[i][1] = dis(gen) % prime_number_;
-				hash_param_b_[i] = dis(gen) % prime_number_;
-				hash_param_c_[i] = dis(gen) % prime_number_;
+				a_powers_[i][1] = dis(gen);
+				hash_param_b_[i] = dis(gen);
+				hash_param_c_[i] = dis(gen);
 #else
 				a_powers_[i][1] = r.next_u32() % prime_number_;
 				hash_param_b_[i] = r.next_u32() % prime_number_;
 				hash_param_c_[i] = r.next_u32() % prime_number_;
 #endif
 				for (size_t j = 1; j < precomputed_number_ - 1; ++j) {
-					a_powers_[i][j] = a_powers_[i][j - 1] * GET_PARAM_A(i);
+					a_powers_[i][j] = (a_powers_[i][j - 1] * GET_PARAM_A(i)) % prime_number_;
 				}
 			}
 		}

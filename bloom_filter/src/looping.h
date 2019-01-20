@@ -11,8 +11,8 @@ namespace bf {
 	constexpr const int max_steps = 600000;
 	constexpr const int min_steps = 10000;
 	constexpr const int step_size = 10000;
-	constexpr const int f_cnt = 6;
-	constexpr const int functions[f_cnt] = { 1, 2, 3, 4, 10, 15 };
+	constexpr const int f_cnt = 15;
+	constexpr const int functions[f_cnt] = { 1, 2, 3, 4,5,6,7,8,9, 10,11,12,13,14, 15 };
 
 	template<int Size, int FCnt>
 	struct f_loop {

@@ -62,12 +62,15 @@ int main(int, char** argv) {
 			ofs << flush;
 		}
 	};
-	ofs << "bit_arr_size f1 f1util f2 f2util f3 f3util f4 f4util f10 f10util f15 f15util" << endl;
+	ofs << "bit_arr_size ";
+	for (size_t i = 0; i < f_cnt; i++)
+		ofs << "f" << functions[i] << " " << "f" << functions[i] << "util ";
+	ofs << endl;
 	//f(bloom_filter<60000, 10>(), ifs, ofs, 0);
-	//looper<max_steps>()(f, ifs, ofs);
 	const auto start = std::chrono::high_resolution_clock::now();
-	//test(f, ifs, ofs);
-	looper<max_steps>()(f, ifs, ofs);
+	//looper<max_steps>()(f, ifs, ofs);
+	ofs << 300000 << " ";
+	f_loop<300000, 1>()(f, ifs, ofs);
 	const auto end = std::chrono::high_resolution_clock::now();
 
 	const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
