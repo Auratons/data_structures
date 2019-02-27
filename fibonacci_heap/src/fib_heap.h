@@ -2,13 +2,14 @@
 #define FIB_HEAP_HPP
 
 #include <cstdint>
-#include <cassert>
+#include <assert.h>
 #include <cstring>
 #include <limits>
 #include <type_traits>
 #include <utility>
 #include <functional>
 #include <new>
+#include <exception>
 #include "gtest/gtest.h"
 
 #define NDEBUG
@@ -33,19 +34,14 @@ namespace fh
 			uint_least32_t rank = 0;
 			bool marked = false;
 
-			node() : right(this), left(this), value(T()) {
-			}
-			explicit node(T&& val) : right(this), left(this), value(std::forward<T>(val)) {
-			}
+			node() : right(this), left(this), value(T()) {}
+			explicit node(T&& val) : right(this), left(this), value(std::forward<T>(val)) {}
 			// As fast as possible (just C++ thing).
-			explicit node(const T& val) : right(this), left(this), value(val) {
-			}
+			explicit node(const T& val) : right(this), left(this), value(val) {}
             node(T&& val, const int_least32_t priority) : right(this), left(this), value(std::forward<T>(val)),
-                                                          priority(priority) {
-            }
+                                                          priority(priority) {}
             // As fast as possible (just C++ thing).
-            node(const T& val, const int_least32_t priority) : right(this), left(this), value(val), priority(priority) {
-            }
+            node(const T& val, const int_least32_t priority) : right(this), left(this), value(val), priority(priority){}
 
 			// At the moment, check that I do not do anything unexpected.
 			node(const node& other) = delete;
@@ -69,7 +65,7 @@ namespace fh
 			}
 
 			// Remove this from the linked list of its neighbors and return handle to the linked list.
-			node* remove_from_neighbors() {
+			node* remove_from_neighbors() noexcept {
 				// Trivial case of linked list with one element.
 				if (!has_neighbors())
 					return nullptr;
@@ -80,22 +76,23 @@ namespace fh
 				return handle;
 			}
 
-			bool has_neighbors() const { return right != this; }
+			bool has_neighbors() const noexcept { return right != this; }
 			bool is_root() const noexcept { return parent == nullptr; }
 
 			~node() {
-				delete parent;
-				if (right != this) delete right;
-				if (left != this) delete left;
 				delete child;
+				// Sink this damn programme you incompetent sailor! :D
+				if (right != this || left != this)
+					throw std::runtime_error("Deleting node still inside doubly linked circular list.");
+				delete parent;
 			}
 		};
 
 		template<typename Action>
-		void list_foreach(node* list, Action&& action) const {
+		static void list_foreach(node* list, Action&& action) {
 			if (!list)
 				return;
-			auto end = list;
+			const auto end = list;
 			auto iterator = list;
 			for (; iterator->right != end; iterator = iterator->right) {
 				action(iterator);
@@ -103,24 +100,25 @@ namespace fh
 			action(iterator); // Handles even list with one element.
 		}
 
-        // Copy array to memory block twice the array_size whichc is in-out parameter
-        // set to the doubled size. Delete array, return pointer to the realocated memory block.
-        node** double_array(node** array, std::size_t* array_size) {
-            auto nextSize = (*array_size) * 2;
-            auto temp = new node*[nextSize];
-            std::memcpy( temp, array, (*array_size) * sizeof(node*) / sizeof(unsigned char) );
-            *array_size = nextSize;
-            delete[] array;
-            return temp;
-        }
+		// Copy array to memory block twice the array_size which is in-out parameter
+		// set to the doubled size. Delete array, return pointer to the reallocated memory block.
+		template<typename ArrayType>
+		static ArrayType* double_array(ArrayType* arr, std::size_t* array_size) {
+			const auto next_size = (*array_size) * 2;
+			auto temp = new ArrayType[next_size];
+			std::memcpy(temp, arr, (*array_size) * sizeof(ArrayType) / sizeof(unsigned char));
+			*array_size = next_size;
+			delete[] arr;
+			return temp;
+		}
 
         template<typename Action>
-        void heap_foreach(node* node_, Action& action) {
+        static void heap_foreach(node* node_, Action& action) {
             if (node_) {
-                std::size_t size = 100;
+                std::size_t size = 100;  // This should work for uint_least32_t elements in the heap.
                 auto stack = new node*[size];
                 int_least32_t stack_top = 0;
-                stack[0] = min_node;
+                stack[0] = node_;
 
                 while (stack_top >= 0) {
                     auto curr = stack[stack_top];
@@ -162,9 +160,7 @@ namespace fh
 		// (if function is not needed one can use [](){} as input).
 		bool naive_implementation = false;
 
-		explicit fibonacci_heap(Function& f) : fun_(f) {
-		}
-
+		explicit fibonacci_heap(Function& f) : fun_(f) {}
 		// At the moment, check that I do not do anything unexpected.
 		fibonacci_heap(const fibonacci_heap& other) = delete;
 		fibonacci_heap(fibonacci_heap&& other) noexcept = delete;
@@ -180,34 +176,34 @@ namespace fh
             else
 			    min_node = (min_node->priority > priority) ? next_node : min_node;
 			++elements_count;
-            #ifndef NDEBUG
-			list_foreach(min_node, [this](auto it) {
-				assert(!it->parent);
-				assert(!it->marked);
-			});
-            heap_foreach(min_node, check_minimality);
-            #endif
+						#ifndef NDEBUG
+						list_foreach(min_node, [](auto it) {
+							assert(!it->parent);
+							assert(!it->marked);
+						});
+						heap_foreach(min_node, check_minimality);
+						#endif
 			return next_node;
 		}
 
-		node_t find_min() const noexcept {
-			return min_node;
-		}
+//		node_t find_min() const noexcept {
+//			return min_node;
+//		}
 
 		// Return min node with left and right pointers pointing to min node, parent, child are nullptr.
 		node* delete_min() {
 			if (!min_node)
 				return nullptr;
 			--elements_count;
-			// Update statistics (just step count).
 			auto heap_minimum_ptr = min_node;
 			// at the next step min_node is not minimal
 			min_node = detach_min_and_level_min_children_up();
 			min_node = consolidate(min_node); // finds minimum
-            #ifndef NDEBUG
-            heap_foreach(min_node, check_minimality);
-            #endif
-            fun_(false, true); // decrease = false, end of operation = true
+						#ifndef NDEBUG
+						heap_foreach(min_node, check_minimality);
+						#endif
+			// Update statistics (just step count), decrease = false, end of operation = true.
+            fun_(false, true);
             return heap_minimum_ptr;
 		}
 
@@ -220,13 +216,13 @@ namespace fh
                     assert(!node_->marked);
                     min_node = node_;
                 }
-                #ifndef NDEBUG
-				list_foreach(min_node, [this](auto it) {
-					assert(!it->parent);
-					assert(!it->marked);
-					assert(it->priority >= min_node->priority);
-				});
-                #endif
+						#ifndef NDEBUG
+						list_foreach(min_node, [this](auto it) {
+							assert(!it->parent);
+							assert(!it->marked);
+							assert(it->priority >= min_node->priority);
+						});
+						#endif
 				return;
 			}
 			if (node_->priority < node_->parent->priority)
@@ -236,19 +232,20 @@ namespace fh
 				assert(!node_->marked);
 				min_node = node_;
 			}
-            #ifndef NDEBUG
-            heap_foreach(min_node, check_minimality);
-            #endif
-            fun_(true, true); // decrease = true, end of operation = true
+						#ifndef NDEBUG
+						heap_foreach(min_node, check_minimality);
+                        #endif
+			// Update statistics (just step count), decrease = true, end of operation = true.
+            fun_(true, true);
 		}
 
-		fibonacci_heap merge(fibonacci_heap&& heap2) {
-			min_node = (min_node <= heap2.min_node) ? min_node : heap2.min_node;
-			node::merge(min_node, heap2.min_node);
-			elements_count += heap2.elements_count;
-			heap2.min_node = nullptr;
-			return *this;
-		}
+//		fibonacci_heap merge(fibonacci_heap&& heap2) {
+//			min_node = (min_node <= heap2.min_node) ? min_node : heap2.min_node;
+//			node::merge(min_node, heap2.min_node);
+//			elements_count += heap2.elements_count;
+//			heap2.min_node = nullptr;
+//			return *this;
+//		}
 
 		void clear() {
 			dfs_clear();
@@ -262,9 +259,12 @@ namespace fh
 
 	private:
 		std::function<void(node*)> check_minimality = [this](node* it) {
-			assert(it->priority >= min_node->priority);
-			if (it->parent)
-				assert(it->priority >= it->parent->priority);
+			if (it->priority < min_node->priority)
+				throw "Heap invariant broken.";
+			if (it->parent) {
+				if (it->priority < it->parent->priority)
+					throw "Heap invariant broken.";
+			}
 		};
 
 		void dfs_clear() {
@@ -310,17 +310,17 @@ namespace fh
 
 		// Put min_node children on min's top heap level LL, null min_node's child ptr.
 		node* detach_min_and_level_min_children_up() {
-		#ifndef NDEBUG
-			auto neighbors = 0;
-			list_foreach(min_node, [&](auto it) { ++neighbors; assert(!it->marked); });
-		#endif
+						#ifndef NDEBUG
+						auto neighbors = 0;
+						list_foreach(min_node, [&](auto it) { ++neighbors; assert(!it->marked); });
+						#endif
             // For not losing pointer to the linked list.
 			auto min_node_neighbors = min_node->remove_from_neighbors();
-		#ifndef NDEBUG
-			auto neighbors_next = 0;
-			list_foreach(min_node_neighbors, [&](auto) { ++neighbors_next; });
-			assert(neighbors == neighbors_next + 1);
-		#endif
+						#ifndef NDEBUG
+						auto neighbors_next = 0;
+						list_foreach(min_node_neighbors, [&](auto) { ++neighbors_next; });
+						assert(neighbors == neighbors_next + 1);
+						#endif
 			// Remove parental pointers from children (min_node has still pointer to the child list).
 			// Update statistics ((naive_)delete_min_count).
 			list_foreach(min_node->child, [&](auto it) {
@@ -329,17 +329,17 @@ namespace fh
 				fun_(false, false); // decrease = false, end of operation = false
 				assert(min_node->priority <= it->priority);
 			});
-		#ifndef NDEBUG
-			auto children = 0;
-			list_foreach(min_node->child, [&](auto) { ++children; });
-		#endif
+						#ifndef NDEBUG
+						auto children = 0;
+						list_foreach(min_node->child, [&](auto) { ++children; });
+						#endif
 			// Join top heap level linked list with minimum's children and null min's child.
 			auto heap_trees = node::merge(min_node->child, min_node_neighbors);
-		#ifndef NDEBUG
-			auto all = 0;
-			list_foreach(heap_trees, [&](auto) { ++all; });
-			assert(all == neighbors_next + children);
-		#endif
+						#ifndef NDEBUG
+						auto all = 0;
+						list_foreach(heap_trees, [&](auto) { ++all; });
+						assert(all == neighbors_next + children);
+						#endif
 			min_node->child = nullptr;
 			min_node->rank = 0;
 			return heap_trees;
@@ -356,19 +356,19 @@ namespace fh
 			node->marked = false;
 			node->parent = nullptr;
 
-		#ifndef NDEBUG
-			auto neighbors = 0;
-			list_foreach(min_node, [&](auto) { ++neighbors; });
-        #endif
+						#ifndef NDEBUG
+						auto neighbors = 0;
+						list_foreach(min_node, [&](auto) { ++neighbors; });
+						#endif
 
             fun_(true, false); // decrease = true, end of operation = false
 			node::merge(min_node, node);
 
-		#ifndef NDEBUG
-			auto neighbors_next = 0;
-			list_foreach(min_node, [&](auto) { ++neighbors_next; });
-			assert(neighbors_next == neighbors + 1);
-        #endif
+						#ifndef NDEBUG
+						auto neighbors_next = 0;
+						list_foreach(min_node, [&](auto) { ++neighbors_next; });
+						assert(neighbors_next == neighbors + 1);
+						#endif
 
 			if (!naive_implementation) {
 				if (node_parent->marked)
@@ -453,7 +453,7 @@ namespace fh
 					iterator = node::merge(pointers[i], iterator);
 				}
 			}
-            list_foreach(iterator, [&, this](auto it){ assert(it->priority >= next_min->priority); });
+            list_foreach(iterator, [&](auto it){ assert(it->priority >= next_min->priority); });
 			delete[] pointers;
 			delete[] trees;
 			return next_min;
